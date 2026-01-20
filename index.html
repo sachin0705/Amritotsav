@@ -62,78 +62,93 @@
     const SHEET_ID = '1R8U9s7X7LbX8chskiBtKV4GR5NTSfSkA5v5fycTFY4Q'; 
     
     // Amount Calculation Logic
-    function calculateAmount(age, scale) {
-        let ageGroup = 0;
-        if (age >= 75 && age < 81) ageGroup = 1;
-        else if (age >= 81 && age < 86) ageGroup = 2;
-        else if (age >= 86 && age < 91) ageGroup = 3;
-        else if (age >= 91) ageGroup = 4;
-
-        if (ageGroup === 0) return "Not Eligible (Age < 75)";
-
-        let scaleGroup = 0;
-        const s = scale.toString().toUpperCase();
-        
-        if (s.includes("CLERK") || s.includes("SUB") || s.includes("CLK")) scaleGroup = 1;
-        else if (s.includes("1") || s.includes("2") || s.includes("3")) scaleGroup = 2;
-        else if (s.includes("4") || s.includes("5")) scaleGroup = 3;
-        else if (s.includes("6") || s.includes("7")) scaleGroup = 4;
-
-        if (scaleGroup === 0) return "Invalid Scale Data";
-
-        const matrix = {
-            1: [5000, 6500, 8000, 9500],
-            2: [5500, 7000, 8500, 10000],
-            3: [6000, 7500, 9000, 10500],
-            4: [6500, 8000, 9500, 11000]
-        };
-
-        return matrix[ageGroup][scaleGroup - 1];
+    // 1. Updated Calculation Engine to include Mode check
+function calculateAmount(age, scale, mode) {
+    // Check Mode of Retirement First
+    if (mode !== "SAN") {
+        return "Not Eligible (Retirement mode other than SAN)";
     }
 
-    function fetchFromCloud() {
-        const id = document.getElementById('p_id').value.trim();
-        if (!id) { alert("Please enter an ID"); return; }
+    // Check Age
+    let ageGroup = 0;
+    if (age >= 75 && age < 81) ageGroup = 1;
+    else if (age >= 81 && age < 86) ageGroup = 2;
+    else if (age >= 86 && age < 91) ageGroup = 3;
+    else if (age >= 91) ageGroup = 4;
 
-        const query = encodeURIComponent(`SELECT * WHERE A = '${id}'`);
-        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${query}`;
+    if (ageGroup === 0) return "Not Eligible (Age < 75)";
 
-        fetch(url)
-            .then(res => res.text())
-            .then(responseText => {
-                // Parsing the Google Viz JSON format
-                const json = JSON.parse(responseText.substring(responseText.indexOf("{"), responseText.lastIndexOf("}") + 1));
-                
-                if (json.table.rows.length > 0) {
-                    const cols = json.table.rows[0].c;
-                    const pData = {
-                        name: cols[1] ? cols[1].v : "N/A",
-                        type: cols[2] ? cols[2].v : "N/A",
-                        age: cols[3] ? parseInt(cols[3].v) : 0,
-                        scale: cols[4] ? cols[4].v : "N/A"
-                    };
-                    showResult(pData);
-                } else {
-                    alert("Pensioner ID not found in the database.");
-                    document.getElementById('displayArea').classList.add('hidden');
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert("Error accessing cloud data. Ensure your Google Sheet is shared as 'Anyone with the link can view'.");
-            });
+    // Scale Logic
+    let scaleGroup = 0;
+    const s = scale.toString().toUpperCase();
+    if (s.includes("CLERK") || s.includes("SUB") || s.includes("CLK")) scaleGroup = 1;
+    else if (s.includes("1") || s.includes("2") || s.includes("3")) scaleGroup = 2;
+    else if (s.includes("4") || s.includes("5")) scaleGroup = 3;
+    else if (s.includes("6") || s.includes("7")) scaleGroup = 4;
+
+    if (scaleGroup === 0) return "Invalid Scale Data";
+
+    const matrix = {
+        1: [5000, 6500, 8000, 9500],
+        2: [5500, 7000, 8500, 10000],
+        3: [6000, 7500, 9000, 10500],
+        4: [6500, 8000, 9500, 11000]
+    };
+
+    return matrix[ageGroup][scaleGroup - 1];
+}
+
+   // 2. Updated Fetch Function to read Column F
+function fetchFromCloud() {
+    const id = document.getElementById('p_id').value.trim();
+    if (!id) { alert("Please enter an ID"); return; }
+
+    const query = encodeURIComponent(`SELECT * WHERE A = '${id}'`);
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${query}`;
+
+    fetch(url)
+        .then(res => res.text())
+        .then(responseText => {
+            const json = JSON.parse(responseText.substring(responseText.indexOf("{"), responseText.lastIndexOf("}") + 1));
+            
+            if (json.table.rows.length > 0) {
+                const cols = json.table.rows[0].c;
+                const pData = {
+                    name: cols[1] ? cols[1].v : "N/A",
+                    type: cols[2] ? cols[2].v : "N/A",
+                    age: cols[3] ? parseInt(cols[3].v) : 0,
+                    scale: cols[4] ? cols[4].v : "N/A",
+                    mode: cols[5] ? cols[5].v : "N/A" // Reading Column F (Index 5)
+                };
+                showResult(pData);
+            } else {
+                alert("Pensioner ID not found.");
+            }
+        });
+}
+
+// 3. Updated Display Function
+function showResult(p) {
+    document.getElementById('displayArea').classList.remove('hidden');
+    document.getElementById('outName').innerText = p.name;
+    document.getElementById('outType').innerText = p.type + " (Mode: " + p.mode + ")";
+    document.getElementById('outAge').innerText = p.age;
+    document.getElementById('outScale').innerText = p.scale;
+    
+    const result = calculateAmount(p.age, p.scale, p.mode);
+    
+    if (typeof result === "string") {
+        document.getElementById('outAmt').innerText = result;
+        document.getElementById('outAmt').style.fontSize = "1.2rem"; // Smaller text for error msg
+        document.getElementById('outAmt').style.color = "red";
+    } else {
+        document.getElementById('outAmt').innerText = result.toLocaleString();
+        document.getElementById('outAmt').style.fontSize = "2rem";
+        document.getElementById('outAmt').style.color = "var(--success)";
     }
+}
 
-    function showResult(p) {
-        document.getElementById('displayArea').classList.remove('hidden');
-        document.getElementById('outName').innerText = p.name;
-        document.getElementById('outType').innerText = p.type;
-        document.getElementById('outAge').innerText = p.age;
-        document.getElementById('outScale').innerText = p.scale;
-        
-        const calculated = calculateAmount(p.age, p.scale);
-        document.getElementById('outAmt').innerText = typeof calculated === 'number' ? calculated.toLocaleString() : calculated;
-    }
+    
 
     function showObjection() {
         document.getElementById('objForm').classList.remove('hidden');
@@ -177,6 +192,7 @@
 </body>
 
 </html>
+
 
 
 
