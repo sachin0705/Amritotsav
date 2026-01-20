@@ -139,11 +139,41 @@
         document.getElementById('objForm').classList.remove('hidden');
     }
 
-    function submitToCloud() {
-        // Placeholder for Google Form integration
-        alert("Your objection has been submitted. Our team will verify the details.");
-        location.reload();
+   function submitToCloud() {
+    // 1. Get user input
+    const pId = document.getElementById('p_id').value;
+    const objType = document.getElementById('objType').value;
+    const proposedAmt = document.getElementById('proposedAmt').value;
+    const remarks = document.getElementById('remarks').value;
+
+    if (!proposedAmt) {
+        alert("Please enter the amount you believe is correct.");
+        return;
     }
+
+    // 2. Replace these with your actual IDs found in Step 2
+    const formUrl = "https://docs.google.com/forms/u/0/d/e/YOUR_LONG_FORM_ID_HERE/formResponse";
+    
+    const formData = new FormData();
+    formData.append('entry.376404850', pId);         // ID Entry ID
+    formData.append('entry.2076140714', objType);     // Type Entry ID
+    formData.append('entry.240764839', proposedAmt); // Amount Entry ID
+    formData.append('entry.913298438', remarks);     // Remarks Entry ID
+
+    // 3. Send data to Google Form
+    fetch(formUrl, {
+        method: 'POST',
+        mode: 'no-cors', // Important for Google Forms
+        body: formData
+    }).then(() => {
+        alert("Objection submitted successfully! We will review your record.");
+        location.reload();
+    }).catch(err => {
+        alert("Submission failed. Please check your internet connection.");
+        console.error(err);
+    });
+}
 </script>
 </body>
+
 </html>
