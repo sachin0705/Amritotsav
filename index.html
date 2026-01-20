@@ -16,15 +16,16 @@
         .result-box { margin-top: 20px; padding: 20px; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
         .amt-tag { font-size: 2rem; color: var(--success); text-align: center; margin: 15px 0; font-weight: bold; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9; }
         .highlight { font-weight: bold; color: var(--primary); }
+        .label { color: #666; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Cent Amritotsav Lumpsum Payment Check</h2>
+    <h2>Cent Amritotsav Payment Check</h2>
     <p style="text-align: center; color: #666; margin-bottom: 25px;">Search by Pensioner ID</p>
     
-    <input type="text" id="p_id" placeholder="Enter Pensioner ID (e.g. 6 digit id 000000)">
+    <input type="text" id="p_id" placeholder="Enter Pensioner ID (e.g. 000000)">
     <button onclick="fetchFromCloud()">Verify Details</button>
 
     <div id="displayArea" class="hidden">
@@ -32,13 +33,16 @@
             <p><strong>Name:</strong> <span id="outName" class="highlight"></span></p>
             <p><strong>Type:</strong> <span id="outType"></span></p>
             <p><strong>Age:</strong> <span id="outAge" class="highlight"></span> | <strong>Scale:</strong> <span id="outScale" class="highlight"></span></p>
+            <p><strong>Mode of Retirement:</strong> <span id="outMode" class="highlight"></span></p>
             
-            <div class="amt-tag">₹<span id="outAmt">0</span></div>
+            <div class="amt-tag" id="amtContainer"><span id="currencySymbol">₹</span><span id="outAmt">0</span></div>
 
-            <p style="text-align:center; font-weight: 500;">Is this amount correct?</p>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="alert('Confirmed! Thank you.')" style="background:var(--success);">Yes, Correct</button>
-                <button onclick="showObjection()" style="background:var(--danger);">No, Object</button>
+            <div id="actionButtons">
+                <p style="text-align:center; font-weight: 500;">Is this amount correct?</p>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="alert('Confirmed! Thank you.')" style="background:var(--success);">Yes, Correct</button>
+                    <button onclick="showObjection()" style="background:var(--danger);">No, Object</button>
+                </div>
             </div>
         </div>
 
@@ -58,142 +62,138 @@
 </div>
 
 <script>
-    // Configuration
     const SHEET_ID = '1R8U9s7X7LbX8chskiBtKV4GR5NTSfSkA5v5fycTFY4Q'; 
     
-    // Amount Calculation Logic
-    // 1. Updated Calculation Engine to include Mode check
-function calculateAmount(age, scale, mode) {
-    // Check Mode of Retirement First
-    if (mode !== "SAN") {
-        return "Not Eligible (Retirement mode other than SAN)";
+    function calculateAmount(age, scale, mode) {
+        // Eligibility Check: Mode
+        if (mode.trim().toUpperCase() !== "SAN") {
+            return "Not Eligible since retirement mode other than Superannuation";
+        }
+
+        // Eligibility Check: Age
+        if (age < 75) {
+            return "Not Eligible (Age < 75)";
+        }
+
+        let ageGroup = 0;
+        if (age >= 75 && age < 81) ageGroup = 1;
+        else if (age >= 81 && age < 86) ageGroup = 2;
+        else if (age >= 86 && age < 91) ageGroup = 3;
+        else if (age >= 91) ageGroup = 4;
+
+        let scaleGroup = 0;
+        const s = scale.toString().toUpperCase();
+        if (s.includes("CLERK") || s.includes("SUB") || s.includes("CLK")) scaleGroup = 1;
+        else if (s.includes("1") || s.includes("2") || s.includes("3")) scaleGroup = 2;
+        else if (s.includes("4") || s.includes("5")) scaleGroup = 3;
+        else if (s.includes("6") || s.includes("7")) scaleGroup = 4;
+
+        if (scaleGroup === 0) return "Invalid Scale Data";
+
+        const matrix = {
+            1: [5000, 6500, 8000, 9500],
+            2: [5500, 7000, 8500, 10000],
+            3: [6000, 7500, 9000, 10500],
+            4: [6500, 8000, 9500, 11000]
+        };
+
+        return matrix[ageGroup][scaleGroup - 1];
     }
 
-    // Check Age
-    let ageGroup = 0;
-    if (age >= 75 && age < 81) ageGroup = 1;
-    else if (age >= 81 && age < 86) ageGroup = 2;
-    else if (age >= 86 && age < 91) ageGroup = 3;
-    else if (age >= 91) ageGroup = 4;
+    function fetchFromCloud() {
+        const id = document.getElementById('p_id').value.trim();
+        if (!id) { alert("Please enter an ID"); return; }
 
-    if (ageGroup === 0) return "Not Eligible (Age < 75)";
+        const query = encodeURIComponent(`SELECT * WHERE A = '${id}'`);
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${query}`;
 
-    // Scale Logic
-    let scaleGroup = 0;
-    const s = scale.toString().toUpperCase();
-    if (s.includes("CLERK") || s.includes("SUB") || s.includes("CLK")) scaleGroup = 1;
-    else if (s.includes("1") || s.includes("2") || s.includes("3")) scaleGroup = 2;
-    else if (s.includes("4") || s.includes("5")) scaleGroup = 3;
-    else if (s.includes("6") || s.includes("7")) scaleGroup = 4;
-
-    if (scaleGroup === 0) return "Invalid Scale Data";
-
-    const matrix = {
-        1: [5000, 6500, 8000, 9500],
-        2: [5500, 7000, 8500, 10000],
-        3: [6000, 7500, 9000, 10500],
-        4: [6500, 8000, 9500, 11000]
-    };
-
-    return matrix[ageGroup][scaleGroup - 1];
-}
-
-   // 2. Updated Fetch Function to read Column F
-function fetchFromCloud() {
-    const id = document.getElementById('p_id').value.trim();
-    if (!id) { alert("Please enter an ID"); return; }
-
-    const query = encodeURIComponent(`SELECT * WHERE A = '${id}'`);
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${query}`;
-
-    fetch(url)
-        .then(res => res.text())
-        .then(responseText => {
-            const json = JSON.parse(responseText.substring(responseText.indexOf("{"), responseText.lastIndexOf("}") + 1));
-            
-            if (json.table.rows.length > 0) {
-                const cols = json.table.rows[0].c;
-                const pData = {
-                    name: cols[1] ? cols[1].v : "N/A",
-                    type: cols[2] ? cols[2].v : "N/A",
-                    age: cols[3] ? parseInt(cols[3].v) : 0,
-                    scale: cols[4] ? cols[4].v : "N/A",
-                    mode: cols[5] ? cols[5].v : "N/A" // Reading Column F (Index 5)
-                };
-                showResult(pData);
-            } else {
-                alert("Pensioner ID not found.");
-            }
-        });
-}
-
-// 3. Updated Display Function
-function showResult(p) {
-    document.getElementById('displayArea').classList.remove('hidden');
-    document.getElementById('outName').innerText = p.name;
-    document.getElementById('outType').innerText = p.type + " (Mode: " + p.mode + ")";
-    document.getElementById('outAge').innerText = p.age;
-    document.getElementById('outScale').innerText = p.scale;
-    
-    const result = calculateAmount(p.age, p.scale, p.mode);
-    
-    if (typeof result === "string") {
-        document.getElementById('outAmt').innerText = result;
-        document.getElementById('outAmt').style.fontSize = "1.2rem"; // Smaller text for error msg
-        document.getElementById('outAmt').style.color = "red";
-    } else {
-        document.getElementById('outAmt').innerText = result.toLocaleString();
-        document.getElementById('outAmt').style.fontSize = "2rem";
-        document.getElementById('outAmt').style.color = "var(--success)";
+        fetch(url)
+            .then(res => res.text())
+            .then(responseText => {
+                const json = JSON.parse(responseText.substring(responseText.indexOf("{"), responseText.lastIndexOf("}") + 1));
+                
+                if (json.table.rows.length > 0) {
+                    const cols = json.table.rows[0].c;
+                    const pData = {
+                        name: cols[1] ? cols[1].v : "N/A",
+                        type: cols[2] ? cols[2].v : "N/A",
+                        age: cols[3] ? parseInt(cols[3].v) : 0,
+                        scale: cols[4] ? cols[4].v : "N/A",
+                        mode: cols[5] ? cols[5].v : "Other" 
+                    };
+                    showResult(pData);
+                } else {
+                    alert("Pensioner ID not found.");
+                }
+            });
     }
-}
 
-    
+    function showResult(p) {
+        document.getElementById('displayArea').classList.remove('hidden');
+        document.getElementById('objForm').classList.add('hidden'); // Reset form if open
+        
+        document.getElementById('outName').innerText = p.name;
+        document.getElementById('outType').innerText = p.type;
+        document.getElementById('outAge').innerText = p.age;
+        document.getElementById('outScale').innerText = p.scale;
+        document.getElementById('outMode').innerText = p.mode;
+        
+        const result = calculateAmount(p.age, p.scale, p.mode);
+        const amtText = document.getElementById('outAmt');
+        const currency = document.getElementById('currencySymbol');
+        const actions = document.getElementById('actionButtons');
+
+        if (typeof result === "string") {
+            // Ineligible Case
+            amtText.innerText = result;
+            amtText.style.fontSize = "1.1rem"; 
+            amtText.style.color = "var(--danger)";
+            currency.classList.add('hidden'); // Hide ₹
+            actions.classList.add('hidden'); // Hide buttons
+        } else {
+            // Eligible Case
+            amtText.innerText = result.toLocaleString();
+            amtText.style.fontSize = "2rem";
+            amtText.style.color = "var(--success)";
+            currency.classList.remove('hidden'); // Show ₹
+            actions.classList.remove('hidden'); // Show buttons
+        }
+    }
 
     function showObjection() {
         document.getElementById('objForm').classList.remove('hidden');
     }
 
-   function submitToCloud() {
-    // 1. Get user input
-    const pId = document.getElementById('p_id').value;
-    const objType = document.getElementById('objType').value;
-    const proposedAmt = document.getElementById('proposedAmt').value;
-    const remarks = document.getElementById('remarks').value;
+    function submitToCloud() {
+        const pId = document.getElementById('p_id').value;
+        const objType = document.getElementById('objType').value;
+        const proposedAmt = document.getElementById('proposedAmt').value;
+        const remarks = document.getElementById('remarks').value;
 
-    if (!proposedAmt) {
-        alert("Please enter the amount you believe is correct.");
-        return;
+        if (!proposedAmt) {
+            alert("Please enter the amount you believe is correct.");
+            return;
+        }
+
+        const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLScFoNlh_s4D7G9P_D6Raz9odFiFB9PFuIZpQe8gVh9U-G1W7Q/formResponse";
+        
+        const formData = new FormData();
+        formData.append('entry.376404850', pId);
+        formData.append('entry.2076140714', objType);
+        formData.append('entry.240764839', proposedAmt);
+        formData.append('entry.913298438', remarks);
+
+        fetch(formUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: formData
+        }).then(() => {
+            alert("Objection submitted successfully!");
+            location.reload();
+        }).catch(err => {
+            alert("Error submitting. Please check your connection.");
+        });
     }
-
-    // 2. Replace these with your actual IDs found in Step 2
-    const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLScFoNlh_s4D7G9P_D6Raz9odFiFB9PFuIZpQe8gVh9U-G1W7Q/formResponse";
-    
-    const formData = new FormData();
-    formData.append('entry.376404850', pId);         // ID Entry ID
-    formData.append('entry.2076140714', objType);     // Type Entry ID
-    formData.append('entry.240764839', proposedAmt); // Amount Entry ID
-    formData.append('entry.913298438', remarks);     // Remarks Entry ID
-
-    // 3. Send data to Google Form
-    fetch(formUrl, {
-        method: 'POST',
-        mode: 'no-cors', // Important for Google Forms
-        body: formData
-    }).then(() => {
-        alert("Objection submitted successfully! We will review your record.");
-        location.reload();
-    }).catch(err => {
-        alert("Submission failed. Please check your internet connection.");
-        console.error(err);
-    });
-}
 </script>
 </body>
-
 </html>
-
-
-
-
-
