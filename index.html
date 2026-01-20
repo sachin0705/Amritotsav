@@ -146,8 +146,11 @@
         if (typeof result === "string") {
             // Ineligible Case
             amtText.innerText = result;
-            amtText.style.fontSize = "1.1rem"; 
-            amtText.style.color = "var(--danger)";
+            
+            // STYLING CHANGE: Matches the red "No" button exactly
+        amtText.style.color = "#c0392b"; 
+        amtText.style.fontWeight = "bold";
+        amtText.style.fontSize = "1.2rem";
             currency.classList.add('hidden'); // Hide ₹
             actions.classList.add('hidden'); // Hide buttons
         } else {
@@ -197,4 +200,5 @@
 </script>
 </body>
 </html>
+
 
