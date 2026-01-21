@@ -88,7 +88,7 @@
         else if (s.includes("4") || s.includes("5")) scaleGroup = 3;
         else if (s.includes("6") || s.includes("7")) scaleGroup = 4;
 
-        if (scaleGroup === 0) return "Invalid Scale Data";
+        if (scaleGroup === 0) return "Scale Not Eligible For Payment";
 
         const matrix = {
             1: [5000, 6500, 8000, 9500],
@@ -200,5 +200,6 @@
 </script>
 </body>
 </html>
+
 
 
